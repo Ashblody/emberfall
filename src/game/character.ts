@@ -94,7 +94,7 @@ export function drawAshblade(ctx: CanvasRenderingContext2D, s: PlayerDrawState) 
 
   // Face direction: rotate whole figure toward movement (top-down with slight iso tilt)
   ctx.rotate(s.facing);
-  // Mild "camera" squash so figure reads taller / Diablo-ish from above-front
+  // Mild "camera" squash so figure reads taller / isometric ARPG from above-front
   ctx.scale(1, 0.78);
 
   const walk = s.moving ? s.walkPhase : 0;
