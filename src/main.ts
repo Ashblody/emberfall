@@ -21,7 +21,7 @@ document.getElementById('btn-start')!.addEventListener('click', () => game.start
 // Register service worker for PWA offline core
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
       /* offline SW optional in dev */
     });
   });

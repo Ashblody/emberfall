@@ -2,6 +2,10 @@
 
 Touch-first ARPG prototype. Class: **Ashblade**. Dungeon zone: **Ashgates**.
 
+## Rendering
+
+**2.5D Canvas** (not WebGL/Three.js) for phone FPS: procedural limb volumes with walk cycle, attack swings, readable head/arms, isometric-ish squash. Smooth camera follow, hit flash/shake, impact particles.
+
 ## Play locally
 
 ```bash
@@ -17,6 +21,10 @@ npm run preview
 ```
 
 `npm run build` also writes `emberfall-usb.zip` (static files + Slovenian USB README).
+
+## Live
+
+https://ashblody.github.io/emberfall/
 
 ## PWA
 

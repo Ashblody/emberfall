@@ -82,8 +82,20 @@ export class Input {
     const clamped = Math.min(len, this.stickRadius);
     dx = (dx / len) * clamped;
     dy = (dy / len) * clamped;
-    this.moveX = dx / this.stickRadius;
-    this.moveY = dy / this.stickRadius;
+    let mx = dx / this.stickRadius;
+    let my = dy / this.stickRadius;
+    // soft deadzone for phone thumbs
+    const m = Math.hypot(mx, my);
+    if (m < 0.12) {
+      mx = 0;
+      my = 0;
+    } else {
+      const remapped = (m - 0.12) / 0.88;
+      mx = (mx / m) * remapped;
+      my = (my / m) * remapped;
+    }
+    this.moveX = mx;
+    this.moveY = my;
     this.knobEl.style.left = `${35 + dx}px`;
     this.knobEl.style.top = `${35 + dy}px`;
   }

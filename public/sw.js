@@ -1,5 +1,5 @@
 /* Emberfall offline core SW */
-const CACHE = 'emberfall-v1';
+const CACHE = 'emberfall-v2';
 const CORE = [
   './',
   './index.html',
