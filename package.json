@@ -1,0 +1,17 @@
+{
+  "name": "emberfall",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && node scripts/make-usb-zip.mjs",
+    "preview": "vite preview",
+    "zip:usb": "node scripts/make-usb-zip.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vite-plugin-pwa": "^1.3.0"
+  }
+}
