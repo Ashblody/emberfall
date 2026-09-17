@@ -1,4 +1,4 @@
-/** Procedural 2.5D isometric Ashblade — limb volumes, walk + attack (Canvas 2D). */
+/** Procedural 2.5D Ashblade — clearer head/arms, strong walk + attack read (Canvas 2D). */
 
 export interface PlayerDrawState {
   facing: number;
@@ -6,7 +6,6 @@ export interface PlayerDrawState {
   walkPhase: number;
   /** 0 = idle, 1 = mid-swing peak */
   attackT: number;
-  /** which attack flavor for arm pose */
   attackKind: 'none' | 'basic' | 'spiral' | 'ashwake';
   invuln: number;
   time: number;
@@ -55,6 +54,7 @@ function limb(
   const nx = -dy / len;
   const ny = dx / len;
   const hw = w / 2;
+  const fillHex = fill.startsWith('#') ? fill : '#4a3020';
   ctx.beginPath();
   ctx.moveTo(x0 + nx * hw, y0 + ny * hw);
   ctx.lineTo(x1 + nx * hw * 0.7, y1 + ny * hw * 0.7);
@@ -63,25 +63,25 @@ function limb(
   ctx.closePath();
   ctx.fillStyle = fill;
   ctx.fill();
-  // joint balls for volume
-  oval(ctx, x0, y0, w * 0.55, w * 0.45, shade(fill.startsWith('#') ? fill : '#4a3020', 10));
-  oval(ctx, x1, y1, w * 0.45, w * 0.38, shade(fill.startsWith('#') ? fill : '#4a3020', -8));
+  oval(ctx, x0, y0, w * 0.55, w * 0.45, shade(fillHex, 12));
+  oval(ctx, x1, y1, w * 0.48, w * 0.4, shade(fillHex, -10));
 }
 
 /**
- * Draw Ashblade in isometric-ish screen space.
- * World facing angle (atan2) maps to 8-dir body lean; limbs animate in local space.
+ * Draw Ashblade facing move/attack direction.
+ * Stronger limb swing + oversized head/arms for phone readability.
  */
 export function drawAshblade(ctx: CanvasRenderingContext2D, s: PlayerDrawState) {
-  const bob = s.moving ? Math.sin(s.walkPhase * 2) * 1.6 : Math.sin(s.time * 3) * 0.6;
-  const breath = Math.sin(s.time * 2.2) * 0.4;
+  const bob = s.moving ? Math.sin(s.walkPhase * 2) * 2.4 : Math.sin(s.time * 3) * 0.7;
+  const breath = Math.sin(s.time * 2.2) * 0.5;
+  const stride = s.moving ? 1 : 0;
 
-  // Ground shadow (ellipse = depth cue)
+  // Ground shadow
   ctx.save();
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.38;
   ctx.fillStyle = '#1a0a04';
   ctx.beginPath();
-  ctx.ellipse(0, 10, 16, 7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 12, 18 + stride * 2, 7.5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
@@ -89,199 +89,182 @@ export function drawAshblade(ctx: CanvasRenderingContext2D, s: PlayerDrawState) 
   ctx.translate(0, bob);
 
   if (s.invuln > 0) {
-    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(s.time * 28);
+    ctx.globalAlpha = 0.45 + 0.55 * Math.sin(s.time * 28);
   }
 
-  // Face direction: rotate whole figure toward movement (top-down with slight iso tilt)
+  // Face toward move / attack (world atan2 → screen rotate)
   ctx.rotate(s.facing);
-  // Mild "camera" squash so figure reads taller / isometric ARPG from above-front
-  ctx.scale(1, 0.78);
+  // Mild isometric squash (taller read from above-front)
+  ctx.scale(1, 0.76);
 
   const walk = s.moving ? s.walkPhase : 0;
-  const legSwing = s.moving ? Math.sin(walk) * 11 : 0;
-  const armSwing = s.moving ? Math.sin(walk) * 7 : 0;
+  const legSwing = s.moving ? Math.sin(walk) * 16 : 0;
+  const armSwing = s.moving ? Math.sin(walk) * 11 : 0;
 
-  // Attack overrides
   let atkArm = 0;
   let atkBlade = 0;
   let torsoTwist = 0;
+  let lunge = 0;
   if (s.attackT > 0) {
     const t = s.attackT;
-    // ease: wind-up then slash
-    const slash = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
-    const wind = t < 0.35 ? (t / 0.35) * -0.6 : 0;
+    const slash = t < 0.32 ? t / 0.32 : 1 - (t - 0.32) / 0.68;
+    const wind = t < 0.32 ? (t / 0.32) * -0.85 : 0;
+    lunge = slash * 4;
     if (s.attackKind === 'spiral') {
-      atkArm = t * Math.PI * 2;
-      atkBlade = 18;
-      torsoTwist = t * 0.8;
+      atkArm = t * Math.PI * 2.2;
+      atkBlade = 22;
+      torsoTwist = t * 1.1;
     } else if (s.attackKind === 'ashwake') {
-      atkArm = -0.9 + slash * 1.8;
-      atkBlade = 22 * slash;
-      torsoTwist = slash * 0.35;
+      atkArm = -1.1 + slash * 2.1;
+      atkBlade = 26 * slash;
+      torsoTwist = slash * 0.5;
+      lunge = slash * 8;
     } else {
-      // basic slash
-      atkArm = wind * 1.2 + slash * 1.6;
-      atkBlade = 8 + slash * 20;
-      torsoTwist = slash * 0.45;
+      atkArm = wind * 1.4 + slash * 1.85;
+      atkBlade = 10 + slash * 26;
+      torsoTwist = slash * 0.55;
     }
   }
 
-  ctx.rotate(torsoTwist * 0.15);
+  ctx.translate(lunge, 0);
+  ctx.rotate(torsoTwist * 0.18);
 
-  // --- Legs (drawn first, behind torso) ---
-  const hipY = 4;
+  const hipY = 5;
   const boot = '#2a1810';
   const pant = '#3a2818';
   const pantLite = '#4a3420';
 
   // back leg
-  const lx0 = -5;
-  const ly0 = hipY;
-  const lx1 = -5 - legSwing * 0.15;
-  const ly1 = hipY + 14 + Math.abs(legSwing) * 0.08;
-  limb(ctx, lx0, ly0, lx1 - legSwing * 0.35, ly1, 6.5, pant);
-  oval(ctx, lx1 - legSwing * 0.35, ly1 + 2, 5, 2.5, boot);
+  const lx1 = -6 - legSwing * 0.45;
+  const ly1 = hipY + 16 + Math.abs(legSwing) * 0.12;
+  limb(ctx, -6, hipY, lx1, ly1, 7.5, pant);
+  oval(ctx, lx1, ly1 + 2.5, 6, 3, boot);
 
   // front leg
-  const rx0 = 5;
-  const ry0 = hipY;
-  const rx1 = 5 + legSwing * 0.15;
-  const ry1 = hipY + 14 + Math.abs(-legSwing) * 0.08;
-  limb(ctx, rx0, ry0, rx1 + legSwing * 0.35, ry1, 6.5, pantLite);
-  oval(ctx, rx1 + legSwing * 0.35, ry1 + 2, 5, 2.5, boot);
+  const rx1 = 6 + legSwing * 0.45;
+  const ry1 = hipY + 16 + Math.abs(-legSwing) * 0.12;
+  limb(ctx, 6, hipY, rx1, ry1, 7.5, pantLite);
+  oval(ctx, rx1, ry1 + 2.5, 6, 3, boot);
 
-  // --- Torso (layered volumes) ---
-  // cape / cloak flap
+  // cape
   ctx.fillStyle = '#5a2010';
   ctx.beginPath();
-  ctx.moveTo(-10, -2);
-  ctx.quadraticCurveTo(-16, 6 + Math.sin(s.time * 4 + walk) * 2, -8, 16);
-  ctx.lineTo(0, 8);
+  ctx.moveTo(-12, -2);
+  ctx.quadraticCurveTo(-20, 8 + Math.sin(s.time * 4 + walk) * 3, -10, 18);
+  ctx.lineTo(0, 9);
   ctx.closePath();
   ctx.fill();
 
-  // pelvis
-  oval(ctx, 0, 2, 9, 5, '#4a2c18', '#2a1810');
-  // chest armor plate
-  oval(ctx, 0, -6 + breath * 0.2, 11, 9, '#6a3a22', '#2a1810');
-  // highlight for volume
-  ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.35;
-  oval(ctx, -3, -9, 4, 3, '#c07040');
-  ctx.globalAlpha = s.invuln > 0 ? 0.5 + 0.5 * Math.sin(s.time * 28) : 1;
+  // pelvis + chest
+  oval(ctx, 0, 3, 10.5, 5.5, '#4a2c18', '#2a1810');
+  oval(ctx, 0, -7 + breath * 0.2, 13, 10.5, '#6a3a22', '#2a1810');
+  const prevA = ctx.globalAlpha;
+  ctx.globalAlpha = prevA * 0.4;
+  oval(ctx, -3.5, -10, 5, 3.5, '#c07040');
+  ctx.globalAlpha = prevA;
 
-  // ember core glow on chest
-  ctx.fillStyle = 'rgba(255,140,40,0.55)';
+  // ember core
+  ctx.fillStyle = 'rgba(255,140,40,0.65)';
   ctx.beginPath();
-  ctx.arc(1, -5, 3 + Math.sin(s.time * 5) * 0.5, 0, Math.PI * 2);
+  ctx.arc(2, -5, 3.5 + Math.sin(s.time * 5) * 0.6, 0, Math.PI * 2);
   ctx.fill();
 
-  // --- Head (clear silhouette) ---
-  const headY = -18 + breath;
-  // neck
-  limb(ctx, 0, -12, 0, headY + 4, 4, '#c09060');
-  // hood / hair back
-  oval(ctx, 0, headY - 1, 9, 9, '#3a2010');
-  // face
-  oval(ctx, 1, headY, 7, 7.5, '#e0b888', '#6a4030');
-  // face shade
-  oval(ctx, -1, headY + 1, 3.5, 4, '#c89868');
-  // eyes (facing forward in local +x after rotate)
+  // --- Head (large, readable silhouette) ---
+  const headY = -20 + breath;
+  limb(ctx, 0, -13, 0, headY + 5, 4.5, '#c09060');
+  oval(ctx, 0, headY - 1, 10.5, 10.5, '#3a2010');
+  oval(ctx, 2, headY, 8.2, 8.8, '#e0b888', '#6a4030');
+  oval(ctx, -1, headY + 1.5, 4, 4.5, '#c89868');
+  // eyes look along +local X (facing)
   ctx.fillStyle = '#1a1008';
   ctx.beginPath();
-  ctx.arc(4, headY - 1, 1.3, 0, Math.PI * 2);
-  ctx.arc(4, headY + 2.5, 1.3, 0, Math.PI * 2);
+  ctx.arc(5.5, headY - 1.5, 1.55, 0, Math.PI * 2);
+  ctx.arc(5.5, headY + 2.8, 1.55, 0, Math.PI * 2);
   ctx.fill();
-  // ember eye glints
   ctx.fillStyle = '#ff9040';
   ctx.beginPath();
-  ctx.arc(4.5, headY - 1.2, 0.6, 0, Math.PI * 2);
-  ctx.arc(4.5, headY + 2.3, 0.6, 0, Math.PI * 2);
+  ctx.arc(6.1, headY - 1.7, 0.7, 0, Math.PI * 2);
+  ctx.arc(6.1, headY + 2.6, 0.7, 0, Math.PI * 2);
   ctx.fill();
-  // hood rim
   ctx.strokeStyle = '#8a4030';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
-  ctx.arc(0, headY, 8.5, -1.2, 1.2);
+  ctx.arc(0, headY, 10, -1.25, 1.25);
   ctx.stroke();
 
-  // --- Arms ---
-  const shoulderY = -8;
-  // off-hand (left) — shield / free hand
-  const lSwing = s.attackT > 0 && s.attackKind === 'spiral' ? -atkArm * 0.4 : -armSwing;
-  const lhX = -10 + Math.cos(lSwing) * 2;
-  const lhY = shoulderY + 8 + Math.sin(lSwing) * 6;
-  limb(ctx, -8, shoulderY, lhX, lhY, 5.5, '#5a3828');
-  oval(ctx, lhX, lhY, 3.5, 3, '#c09060');
-  // small buckler
-  oval(ctx, lhX - 2, lhY + 1, 5, 4, '#4a3020', '#8a6050');
+  // --- Arms (thick, readable) ---
+  const shoulderY = -9;
+  const lSwing = s.attackT > 0 && s.attackKind === 'spiral' ? -atkArm * 0.45 : -armSwing;
+  const lhX = -12 + Math.cos(lSwing) * 3;
+  const lhY = shoulderY + 10 + Math.sin(lSwing) * 8;
+  // shoulder pad
+  oval(ctx, -10, shoulderY - 1, 5, 4, '#5a3020', '#2a1810');
+  limb(ctx, -9, shoulderY, lhX, lhY, 6.5, '#5a3828');
+  oval(ctx, lhX, lhY, 4.2, 3.6, '#c09060');
+  oval(ctx, lhX - 2.5, lhY + 1, 6, 4.5, '#4a3020', '#8a6050');
 
-  // weapon arm (right) — Ashblade
-  const baseAng = s.attackT > 0 ? atkArm : 0.35 + armSwing * 0.08;
-  const reach = 16 + (s.attackT > 0 ? atkBlade * 0.15 : 0);
+  oval(ctx, 10, shoulderY - 1, 5, 4, '#5a3020', '#2a1810');
+  const baseAng = s.attackT > 0 ? atkArm : 0.4 + armSwing * 0.1;
+  const reach = 18 + (s.attackT > 0 ? atkBlade * 0.18 : 0);
   const wx = Math.cos(baseAng) * reach;
-  const wy = shoulderY + Math.sin(baseAng) * reach + (s.attackT > 0 ? -2 : 4);
-  limb(ctx, 8, shoulderY, wx, wy, 5.5, '#5a3828');
-  oval(ctx, wx, wy, 3.2, 2.8, '#c09060');
+  const wy = shoulderY + Math.sin(baseAng) * reach + (s.attackT > 0 ? -3 : 5);
+  limb(ctx, 9, shoulderY, wx, wy, 6.5, '#5a3828');
+  oval(ctx, wx, wy, 3.8, 3.2, '#c09060');
 
   // Blade
-  const bladeLen = 22 + (s.attackT > 0 ? atkBlade * 0.35 : 0);
-  const bAng = baseAng - 0.15;
+  const bladeLen = 26 + (s.attackT > 0 ? atkBlade * 0.4 : 0);
+  const bAng = baseAng - 0.12;
   const tipX = wx + Math.cos(bAng) * bladeLen;
   const tipY = wy + Math.sin(bAng) * bladeLen;
   const midX = wx + Math.cos(bAng) * (bladeLen * 0.45);
   const midY = wy + Math.sin(bAng) * (bladeLen * 0.45);
 
-  // glow
-  ctx.strokeStyle = s.attackT > 0 ? 'rgba(255,180,60,0.85)' : 'rgba(255,140,40,0.55)';
-  ctx.lineWidth = s.attackT > 0 ? 5 : 3;
+  ctx.strokeStyle = s.attackT > 0 ? 'rgba(255,190,70,0.9)' : 'rgba(255,140,40,0.55)';
+  ctx.lineWidth = s.attackT > 0 ? 6.5 : 3.5;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(wx, wy);
   ctx.lineTo(tipX, tipY);
   ctx.stroke();
 
-  // blade body
   const px = -Math.sin(bAng);
   const py = Math.cos(bAng);
   ctx.fillStyle = '#e8d0a0';
   ctx.beginPath();
-  ctx.moveTo(wx + px * 2, wy + py * 2);
-  ctx.lineTo(midX + px * 3.5, midY + py * 3.5);
+  ctx.moveTo(wx + px * 2.2, wy + py * 2.2);
+  ctx.lineTo(midX + px * 4, midY + py * 4);
   ctx.lineTo(tipX, tipY);
-  ctx.lineTo(midX - px * 2, midY - py * 2);
-  ctx.lineTo(wx - px * 1.5, wy - py * 1.5);
+  ctx.lineTo(midX - px * 2.2, midY - py * 2.2);
+  ctx.lineTo(wx - px * 1.6, wy - py * 1.6);
   ctx.closePath();
   ctx.fill();
-  // hot edge
   ctx.strokeStyle = '#ff8030';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.8;
   ctx.beginPath();
-  ctx.moveTo(midX + px * 2, midY + py * 2);
+  ctx.moveTo(midX + px * 2.2, midY + py * 2.2);
   ctx.lineTo(tipX, tipY);
   ctx.stroke();
-  // guard
-  oval(ctx, wx, wy, 4, 2.5, '#8a4a28', '#2a1810');
+  oval(ctx, wx, wy, 4.5, 2.8, '#8a4a28', '#2a1810');
 
-  // slash arc trail when attacking
-  if (s.attackT > 0.2 && s.attackT < 0.85 && s.attackKind !== 'spiral') {
-    ctx.strokeStyle = `rgba(255,160,60,${0.55 * (1 - s.attackT)})`;
-    ctx.lineWidth = 3;
+  if (s.attackT > 0.18 && s.attackT < 0.88 && s.attackKind !== 'spiral') {
+    ctx.strokeStyle = `rgba(255,170,60,${0.65 * (1 - s.attackT)})`;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(0, -2, 28, baseAng - 1.1, baseAng + 0.2);
+    ctx.arc(0, -2, 32, baseAng - 1.25, baseAng + 0.25);
     ctx.stroke();
   }
   if (s.attackKind === 'spiral' && s.attackT > 0) {
-    ctx.strokeStyle = `rgba(255,120,40,${0.4 * (1 - s.attackT)})`;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(255,120,40,${0.5 * (1 - s.attackT)})`;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(0, 0, 20 + s.attackT * 30, 0, Math.PI * 2);
+    ctx.arc(0, 0, 22 + s.attackT * 34, 0, Math.PI * 2);
     ctx.stroke();
   }
 
   ctx.restore();
 }
 
-/** Simple 2.5D enemy with head + body (not a flat blob). */
+/** Simple 2.5D enemy with head + body. */
 export function drawEnemyFigure(
   ctx: CanvasRenderingContext2D,
   kind: string,
@@ -303,10 +286,9 @@ export function drawEnemyFigure(
 
   ctx.save();
   ctx.rotate(facing);
-  ctx.scale(1, 0.78);
+  ctx.scale(1, 0.76);
   ctx.translate(0, bob);
 
-  // shadow
   ctx.globalAlpha = 0.3;
   ctx.fillStyle = '#000';
   ctx.beginPath();
@@ -314,19 +296,15 @@ export function drawEnemyFigure(
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // legs
   limb(ctx, -radius * 0.35, 2, -radius * 0.35 - leg * 0.3, radius * 0.75, radius * 0.28, dark);
   limb(ctx, radius * 0.35, 2, radius * 0.35 + leg * 0.3, radius * 0.75, radius * 0.28, fill);
 
-  // body
   oval(ctx, 0, -radius * 0.15, radius * 0.75, radius * 0.7, fill, dark);
-  // head
-  oval(ctx, 2, -radius * 0.85, radius * 0.45, radius * 0.42, fill, dark);
-  // eyes
+  oval(ctx, 2, -radius * 0.85, radius * 0.48, radius * 0.45, fill, dark);
   ctx.fillStyle = elite ? '#e0a0ff' : '#ffcc40';
   ctx.beginPath();
-  ctx.arc(radius * 0.25, -radius * 0.9, radius * 0.1, 0, Math.PI * 2);
-  ctx.arc(radius * 0.25, -radius * 0.7, radius * 0.1, 0, Math.PI * 2);
+  ctx.arc(radius * 0.28, -radius * 0.9, radius * 0.11, 0, Math.PI * 2);
+  ctx.arc(radius * 0.28, -radius * 0.7, radius * 0.11, 0, Math.PI * 2);
   ctx.fill();
 
   if (elite) {

@@ -41,7 +41,10 @@ export interface FloatingText {
   text: string;
   color: string;
   life: number;
+  maxLife: number;
   vy: number;
+  crit?: boolean;
+  scale?: number;
 }
 
 export type EnemyKind = 'emberling' | 'sandwretch' | 'cinderbrute';

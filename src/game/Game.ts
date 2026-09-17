@@ -12,6 +12,13 @@ const PLAYER_R = 14;
 const PLAYER_SPEED = 230;
 const MAX_HP = 100;
 const MAX_EMBER = 100;
+const BASIC_CD = 0.32;
+const SPIRAL_CD = 4.5;
+const ASHWAKE_CD = 5.5;
+const SPIRAL_COST = 28;
+const ASHWAKE_COST = 22;
+const CRIT_CHANCE = 0.18;
+const CRIT_MULT = 1.75;
 
 export class Game {
   running = false;
@@ -47,6 +54,7 @@ export class Game {
   private lastTs = 0;
   private msg = '';
   private animTime = 0;
+  private hitStop = 0;
 
   private hpFill: HTMLElement;
   private emberFill: HTMLElement;
@@ -57,6 +65,9 @@ export class Game {
   private btnAshwake: HTMLElement;
   private btnBasic: HTMLElement;
   private overlay: HTMLElement;
+  private cdBasic: HTMLElement;
+  private cdSpiral: HTMLElement;
+  private cdAshwake: HTMLElement;
 
   private input: Input;
   private renderer: Renderer;
@@ -73,6 +84,9 @@ export class Game {
     this.btnAshwake = document.getElementById('btn-ashwake')!;
     this.btnBasic = document.getElementById('btn-basic')!;
     this.overlay = document.getElementById('overlay')!;
+    this.cdBasic = document.getElementById('cd-basic')!;
+    this.cdSpiral = document.getElementById('cd-spiral')!;
+    this.cdAshwake = document.getElementById('cd-ashwake')!;
   }
 
   start() {
@@ -114,6 +128,7 @@ export class Game {
     this.kills = 0;
     this.msg = '';
     this.animTime = 0;
+    this.hitStop = 0;
     this.lootToast.textContent = '';
     this.spawnPack(SPAWN_POINTS[0]!, 4, false);
     this.spawnPack(SPAWN_POINTS[2]!, 3, false);
@@ -121,8 +136,12 @@ export class Game {
 
   private frame = (ts: number) => {
     if (!this.running) return;
-    const dt = Math.min(0.05, (ts - this.lastTs) / 1000);
+    let dt = Math.min(0.05, (ts - this.lastTs) / 1000);
     this.lastTs = ts;
+    if (this.hitStop > 0) {
+      this.hitStop -= dt;
+      dt *= 0.15;
+    }
     this.update(dt);
     this.draw(dt);
     requestAnimationFrame(this.frame);
@@ -172,6 +191,23 @@ export class Game {
     this.player.atkDur = dur;
   }
 
+  /** Face move dir, or nearest foe when attacking / stick idle. */
+  private faceTowardCombat(preferAim: boolean) {
+    const p = this.player;
+    if (!preferAim && p.moving) return;
+    let best: Enemy | null = null;
+    let bestD = 160;
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    if (best) p.facing = Math.atan2(best.y - p.y, best.x - p.x);
+  }
+
   private update(dt: number) {
     const p = this.player;
     this.animTime += dt;
@@ -187,7 +223,6 @@ export class Game {
     }
 
     const move = this.input.pollMove();
-    // acceleration feel
     const accel = 10;
     p.moveSmoothX += (move.x - p.moveSmoothX) * Math.min(1, accel * dt);
     p.moveSmoothY += (move.y - p.moveSmoothY) * Math.min(1, accel * dt);
@@ -201,8 +236,8 @@ export class Game {
       const next = tryMove(p.x, p.y, mx * speed * dt, my * speed * dt, PLAYER_R);
       p.x = next.x;
       p.y = next.y;
-      p.walkPhase += dt * 10 * Math.min(1, mLen);
-      if (Math.random() < 0.45) {
+      p.walkPhase += dt * 11 * Math.min(1, mLen);
+      if (Math.random() < 0.5) {
         this.particles.push({
           x: p.x - Math.cos(p.facing) * 6,
           y: p.y - Math.sin(p.facing) * 6 + 10,
@@ -254,11 +289,13 @@ export class Game {
   private castBasic() {
     const p = this.player;
     if (p.basicCd > 0) return;
-    p.basicCd = 0.32;
-    this.beginAttack('basic', 0.26);
-    const reach = 58;
-    const arc = 1.0;
+    p.basicCd = BASIC_CD;
+    this.faceTowardCombat(true);
+    this.beginAttack('basic', 0.28);
+    const reach = 62;
+    const arc = 1.05;
     let hit = false;
+    let anyCrit = false;
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const dx = e.x - p.x;
@@ -268,145 +305,174 @@ export class Game {
       const ang = Math.atan2(dy, dx);
       let diff = Math.abs(((ang - p.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       if (diff > arc) continue;
-      this.damageEnemy(e, 16 + Math.random() * 6, '#ffb060');
+      const crit = this.damageEnemy(e, 16 + Math.random() * 6, '#ffb060');
+      if (crit) anyCrit = true;
       hit = true;
+      // light knock
+      const k = 28 / (dist || 1);
+      e.x += dx * k * 0.15;
+      e.y += dy * k * 0.15;
     }
     this.aoes.push({
-      x: p.x + Math.cos(p.facing) * 28,
-      y: p.y + Math.sin(p.facing) * 28,
-      radius: 10,
-      maxRadius: 44,
-      life: 0.18,
-      maxLife: 0.18,
+      x: p.x + Math.cos(p.facing) * 30,
+      y: p.y + Math.sin(p.facing) * 30,
+      radius: 12,
+      maxRadius: 48,
+      life: 0.2,
+      maxLife: 0.2,
       color: '#ff9040',
     });
-    for (let i = 0; i < (hit ? 10 : 6); i++) {
+    for (let i = 0; i < (hit ? 14 : 7); i++) {
       const a = p.facing + (Math.random() - 0.5) * arc;
       this.particles.push({
-        x: p.x + Math.cos(a) * 22,
-        y: p.y + Math.sin(a) * 22,
-        vx: Math.cos(a) * (90 + Math.random() * 60),
-        vy: Math.sin(a) * (90 + Math.random() * 60),
-        life: 0.28,
-        maxLife: 0.28,
+        x: p.x + Math.cos(a) * 24,
+        y: p.y + Math.sin(a) * 24,
+        vx: Math.cos(a) * (100 + Math.random() * 80),
+        vy: Math.sin(a) * (100 + Math.random() * 80),
+        life: 0.32,
+        maxLife: 0.32,
         color: hit ? '#ffd080' : '#ffb060',
-        size: 2 + Math.random() * 3,
+        size: 2.5 + Math.random() * 3.5,
       });
     }
     if (hit) {
-      this.renderer.shake(5, 0.12);
-      this.renderer.flashHit(0.2);
+      this.renderer.shake(anyCrit ? 7 : 5, anyCrit ? 0.16 : 0.12);
+      this.renderer.flashHit(anyCrit ? 0.28 : 0.18);
+      this.hitStop = anyCrit ? 0.05 : 0.028;
     }
   }
 
   private castSpiral() {
     const p = this.player;
-    if (p.spiralCd > 0 || p.ember < 28) return;
-    p.ember -= 28;
-    p.spiralCd = 4.5;
-    this.beginAttack('spiral', 0.42);
-    this.renderer.shake(7, 0.2);
+    if (p.spiralCd > 0 || p.ember < SPIRAL_COST) return;
+    p.ember -= SPIRAL_COST;
+    p.spiralCd = SPIRAL_CD;
+    this.beginAttack('spiral', 0.45);
+    this.renderer.shake(8, 0.22);
     this.aoes.push({
       x: p.x,
       y: p.y,
-      radius: 20,
-      maxRadius: 110,
-      life: 0.45,
-      maxLife: 0.45,
+      radius: 22,
+      maxRadius: 115,
+      life: 0.48,
+      maxLife: 0.48,
       color: '#ff7030',
     });
     let any = false;
+    let anyCrit = false;
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const d = Math.hypot(e.x - p.x, e.y - p.y);
-      if (d < 110 + e.radius) {
-        this.damageEnemy(e, 28 + Math.random() * 10, '#ff8040');
+      if (d < 115 + e.radius) {
+        const crit = this.damageEnemy(e, 28 + Math.random() * 10, '#ff8040');
+        if (crit) anyCrit = true;
         any = true;
+        const dx = e.x - p.x;
+        const dy = e.y - p.y;
+        const len = Math.hypot(dx, dy) || 1;
+        e.x += (dx / len) * 22;
+        e.y += (dy / len) * 22;
       }
     }
-    for (let i = 0; i < 24; i++) {
-      const a = (Math.PI * 2 * i) / 24;
+    for (let i = 0; i < 28; i++) {
+      const a = (Math.PI * 2 * i) / 28;
       this.particles.push({
         x: p.x,
         y: p.y,
-        vx: Math.cos(a) * 160,
-        vy: Math.sin(a) * 160,
-        life: 0.5,
-        maxLife: 0.5,
+        vx: Math.cos(a) * 180,
+        vy: Math.sin(a) * 180,
+        life: 0.55,
+        maxLife: 0.55,
         color: i % 2 ? '#ff9030' : '#ffd080',
-        size: 4,
+        size: 4.5,
       });
     }
-    if (any) this.renderer.flashHit(0.25);
+    if (any) {
+      this.renderer.flashHit(anyCrit ? 0.35 : 0.26);
+      this.hitStop = 0.04;
+    }
   }
 
   private castAshwake() {
     const p = this.player;
-    if (p.ashwakeCd > 0 || p.ember < 22) return;
-    p.ember -= 22;
-    p.ashwakeCd = 5.5;
-    this.beginAttack('ashwake', 0.34);
-    const dash = 150;
+    if (p.ashwakeCd > 0 || p.ember < ASHWAKE_COST) return;
+    p.ember -= ASHWAKE_COST;
+    p.ashwakeCd = ASHWAKE_CD;
+    this.faceTowardCombat(true);
+    this.beginAttack('ashwake', 0.36);
+    const dash = 155;
     const next = tryMove(p.x, p.y, Math.cos(p.facing) * dash, Math.sin(p.facing) * dash, PLAYER_R);
-    for (let i = 0; i < 12; i++) {
-      const t = i / 12;
+    for (let i = 0; i < 14; i++) {
+      const t = i / 14;
       this.particles.push({
         x: p.x + (next.x - p.x) * t,
         y: p.y + (next.y - p.y) * t,
-        vx: (Math.random() - 0.5) * 40,
-        vy: (Math.random() - 0.5) * 40,
-        life: 0.35,
-        maxLife: 0.35,
+        vx: (Math.random() - 0.5) * 50,
+        vy: (Math.random() - 0.5) * 50,
+        life: 0.38,
+        maxLife: 0.38,
         color: '#ff6020',
-        size: 5 + Math.random() * 3,
+        size: 5 + Math.random() * 4,
       });
     }
     p.x = next.x;
     p.y = next.y;
-    p.invuln = Math.max(p.invuln, 0.25);
+    p.invuln = Math.max(p.invuln, 0.28);
     let hit = false;
+    let anyCrit = false;
     for (const e of this.enemies) {
       if (!e.alive) continue;
-      if (Math.hypot(e.x - p.x, e.y - p.y) < 70 + e.radius) {
-        this.damageEnemy(e, 34 + Math.random() * 12, '#ffe080');
+      if (Math.hypot(e.x - p.x, e.y - p.y) < 72 + e.radius) {
+        const crit = this.damageEnemy(e, 34 + Math.random() * 12, '#ffe080');
+        if (crit) anyCrit = true;
         hit = true;
       }
     }
     this.aoes.push({
       x: p.x,
       y: p.y,
-      radius: 20,
-      maxRadius: 70,
-      life: 0.3,
-      maxLife: 0.3,
+      radius: 22,
+      maxRadius: 74,
+      life: 0.32,
+      maxLife: 0.32,
       color: '#ffd060',
     });
-    this.renderer.shake(hit ? 9 : 4, 0.16);
-    if (hit) this.renderer.flashHit(0.28);
+    this.renderer.shake(hit ? (anyCrit ? 11 : 9) : 4, 0.18);
+    if (hit) {
+      this.renderer.flashHit(anyCrit ? 0.38 : 0.3);
+      this.hitStop = 0.045;
+    }
   }
 
-  private damageEnemy(e: Enemy, dmg: number, color: string) {
-    e.hp -= dmg;
-    e.flash = 0.14;
+  /** Returns true if crit. */
+  private damageEnemy(e: Enemy, dmg: number, color: string): boolean {
+    const crit = Math.random() < CRIT_CHANCE;
+    const final = crit ? dmg * CRIT_MULT : dmg;
+    e.hp -= final;
+    e.flash = crit ? 0.22 : 0.16;
+    const life = crit ? 1.0 : 0.75;
     this.floats.push({
-      x: e.x,
+      x: e.x + (Math.random() - 0.5) * 10,
       y: e.y - e.radius,
-      text: `${Math.round(dmg)}`,
-      color,
-      life: 0.7,
-      vy: -40,
+      text: `${Math.round(final)}`,
+      color: crit ? '#ffe040' : color,
+      life,
+      maxLife: life,
+      vy: crit ? -55 : -42,
+      crit,
+      scale: crit ? 1.35 : 1,
     });
-    // impact sparks
-    for (let i = 0; i < 5; i++) {
+    const sparks = crit ? 10 : 6;
+    for (let i = 0; i < sparks; i++) {
       this.particles.push({
         x: e.x,
         y: e.y,
-        vx: (Math.random() - 0.5) * 140,
-        vy: (Math.random() - 0.5) * 140,
-        life: 0.22,
-        maxLife: 0.22,
-        color,
-        size: 2 + Math.random() * 2,
+        vx: (Math.random() - 0.5) * (crit ? 200 : 150),
+        vy: (Math.random() - 0.5) * (crit ? 200 : 150),
+        life: 0.28,
+        maxLife: 0.28,
+        color: crit ? '#ffe080' : color,
+        size: 2.5 + Math.random() * (crit ? 3.5 : 2.5),
       });
     }
     if (e.hp <= 0) {
@@ -414,22 +480,23 @@ export class Game {
       this.kills++;
       this.onEnemyDeath(e);
     }
+    return crit;
   }
 
   private onEnemyDeath(e: Enemy) {
-    for (let i = 0; i < (e.elite ? 18 : 10); i++) {
+    for (let i = 0; i < (e.elite ? 22 : 12); i++) {
       this.particles.push({
         x: e.x,
         y: e.y,
-        vx: (Math.random() - 0.5) * 180,
-        vy: (Math.random() - 0.5) * 180,
-        life: 0.5,
-        maxLife: 0.5,
+        vx: (Math.random() - 0.5) * 200,
+        vy: (Math.random() - 0.5) * 200,
+        life: 0.55,
+        maxLife: 0.55,
         color: e.elite ? '#c080ff' : '#d06030',
-        size: 3 + Math.random() * 3,
+        size: 3 + Math.random() * 3.5,
       });
     }
-    this.renderer.shake(e.elite ? 8 : 3, e.elite ? 0.22 : 0.08);
+    this.renderer.shake(e.elite ? 9 : 3.5, e.elite ? 0.24 : 0.09);
     const drop = rollLoot(e.elite);
     if (drop) {
       const id = `loot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -440,8 +507,8 @@ export class Game {
         rarity: drop.rarity,
         x: e.x,
         y: e.y,
-        vx: (Math.random() - 0.5) * 60,
-        vy: (Math.random() - 0.5) * 60,
+        vx: (Math.random() - 0.5) * 70,
+        vy: (Math.random() - 0.5) * 70,
         life: 45,
       });
       const cls =
@@ -482,11 +549,12 @@ export class Game {
             y: p.y - 20,
             text: `-${Math.round(e.damage)}`,
             color: '#ff6666',
-            life: 0.6,
-            vy: -30,
+            life: 0.65,
+            maxLife: 0.65,
+            vy: -32,
           });
           this.renderer.shake(10, 0.22);
-          this.renderer.flashHit(0.4);
+          this.renderer.flashHit(0.42);
         }
       }
     }
@@ -521,13 +589,31 @@ export class Game {
       it.y += it.vy * dt;
       it.vx *= 0.9;
       it.vy *= 0.9;
-      if (Math.hypot(it.x - p.x, it.y - p.y) < 28) {
+      const d = Math.hypot(it.x - p.x, it.y - p.y);
+      // soft magnet
+      if (d < 70 && d > 1) {
+        it.vx += ((p.x - it.x) / d) * 220 * dt;
+        it.vy += ((p.y - it.y) / d) * 220 * dt;
+      }
+      if (d < 30) {
         it.life = -1;
         const cls =
           it.rarity === 'yellow' ? 'rarity-yellow' : it.rarity === 'blue' ? 'rarity-blue' : 'rarity-white';
         this.lootToast.innerHTML = `<span class="${cls}">+ ${it.nameSl}</span>`;
         if (it.rarity === 'yellow') p.hp = Math.min(MAX_HP, p.hp + 15);
         if (it.rarity === 'blue') p.ember = Math.min(MAX_EMBER, p.ember + 20);
+        for (let i = 0; i < 6; i++) {
+          this.particles.push({
+            x: it.x,
+            y: it.y,
+            vx: (Math.random() - 0.5) * 80,
+            vy: (Math.random() - 0.5) * 80 - 20,
+            life: 0.35,
+            maxLife: 0.35,
+            color: it.rarity === 'yellow' ? '#ffd24a' : it.rarity === 'blue' ? '#6db3ff' : '#e8e4dc',
+            size: 2 + Math.random() * 2,
+          });
+        }
       }
     }
     this.loot = this.loot.filter((l) => l.life > 0);
@@ -549,15 +635,34 @@ export class Game {
     this.floats = this.floats.filter((f) => f.life > 0);
   }
 
+  private setCdOverlay(el: HTMLElement, btn: HTMLElement, cd: number, maxCd: number, blocked: boolean) {
+    const show = cd > 0.02 || blocked;
+    btn.classList.toggle('cd', show);
+    if (cd > 0.02) {
+      el.textContent = cd >= 1 ? `${Math.ceil(cd)}` : cd.toFixed(1);
+      el.style.opacity = '1';
+      const pct = Math.min(1, cd / maxCd);
+      btn.style.setProperty('--cd-pct', `${pct * 100}%`);
+    } else if (blocked) {
+      el.textContent = '';
+      el.style.opacity = '0';
+      btn.style.setProperty('--cd-pct', '100%');
+    } else {
+      el.textContent = '';
+      el.style.opacity = '0';
+      btn.style.setProperty('--cd-pct', '0%');
+    }
+  }
+
   private updateHud() {
     const p = this.player;
     this.hpFill.style.width = `${(100 * p.hp) / MAX_HP}%`;
     this.emberFill.style.width = `${(100 * p.ember) / MAX_EMBER}%`;
     this.hpLabel.textContent = `Življenje ${Math.ceil(p.hp)}/${MAX_HP}`;
     this.emberLabel.textContent = `Žerjavica ${Math.ceil(p.ember)}/${MAX_EMBER}`;
-    this.btnBasic.classList.toggle('cd', p.basicCd > 0);
-    this.btnSpiral.classList.toggle('cd', p.spiralCd > 0 || p.ember < 28);
-    this.btnAshwake.classList.toggle('cd', p.ashwakeCd > 0 || p.ember < 22);
+    this.setCdOverlay(this.cdBasic, this.btnBasic, p.basicCd, BASIC_CD, false);
+    this.setCdOverlay(this.cdSpiral, this.btnSpiral, p.spiralCd, SPIRAL_CD, p.ember < SPIRAL_COST);
+    this.setCdOverlay(this.cdAshwake, this.btnAshwake, p.ashwakeCd, ASHWAKE_CD, p.ember < ASHWAKE_COST);
   }
 
   private toastMsg(t: string) {
@@ -569,7 +674,7 @@ export class Game {
     const panel = this.overlay.querySelector('.panel')!;
     panel.innerHTML = `
       <h1>${win ? 'Zmaga' : 'Padec'}</h1>
-      <h2>Ashgates · Emberfall</h2>
+      <h2>Dolina · Ashgates</h2>
       <p>${win ? 'Ruševine so za trenutek utihnile.' : 'Ashblade je padel v peščeni prah. Poskusi znova.'}</p>
       <p>Ubitih: ${this.kills}</p>
       <button id="btn-start" type="button">Znova v Ashgates</button>
@@ -608,7 +713,7 @@ export class Game {
       ctx.save();
       ctx.fillStyle = 'rgba(200,120,255,0.85)';
       ctx.font = 'bold 12px system-ui';
-      ctx.fillText(`Plen: ${this.loot.length} · Ubiti: ${this.kills}`, 12, window.innerHeight - 130);
+      ctx.fillText(`Plen: ${this.loot.length} · Ubiti: ${this.kills}`, 12, window.innerHeight - 150);
       ctx.restore();
     }
   }

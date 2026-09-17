@@ -1,10 +1,10 @@
-# Emberfall
+# Emberfall → Dolina combat prototype
 
-Touch-first ARPG prototype. Class: **Ashblade**. Dungeon zone: **Ashgates**.
+Touch-first ARPG combat slice. Class: **Ashblade**. Zone: **Ashgates**. Branding: **Dolina** (URL stays Emberfall).
 
 ## Rendering
 
-**2.5D Canvas** (not WebGL/Three.js) for phone FPS: procedural limb volumes with walk cycle, attack swings, readable head/arms, isometric-ish squash. Smooth camera follow, hit flash/shake, impact particles.
+**2.5D Canvas** (not WebGL/Three.js) for phone FPS: procedural limb volumes with strong walk/attack read, head/arms, facing toward move/attack, mild isometric squash, smooth camera follow (phone-softened), hit flash/shake, crit numbers, loot nameplates.
 
 ## Play locally
 
@@ -40,4 +40,4 @@ https://ashblody.github.io/emberfall/
   - Žerjavni Vrtinec (AoE)
   - Pepelni Prebud (dash strike)
 
-Original names only — no Blizzard IP.
+Original names only — no third-party IP.

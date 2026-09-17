@@ -1,4 +1,4 @@
-# Emberfall — namestitev z USB (Android)
+# Dolina (Emberfall) — USB
 
 Emberfall je spletna igra (PWA). Na telefonu jo lahko odpreš brez trgovine.
 

@@ -8,7 +8,8 @@ export class Input {
   private stickActive = false;
   private stickId: number | null = null;
   private stickOrigin = { x: 0, y: 0 };
-  private stickRadius = 48;
+  private stickRadius = 52;
+  private knobHalf = 20;
   private stickEl: HTMLElement;
   private knobEl: HTMLElement;
 
@@ -52,6 +53,8 @@ export class Input {
       this.stickId = e.pointerId;
       const rect = this.stickEl.getBoundingClientRect();
       this.stickOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      this.stickRadius = Math.min(rect.width, rect.height) * 0.4;
+      this.knobHalf = this.knobEl.offsetWidth / 2 || 20;
       this.stickEl.setPointerCapture(e.pointerId);
       this.updateStick(e.clientX, e.clientY);
     };
@@ -66,13 +69,21 @@ export class Input {
       this.stickId = null;
       this.moveX = 0;
       this.moveY = 0;
-      this.knobEl.style.left = '35px';
-      this.knobEl.style.top = '35px';
+      this.resetKnob();
     };
     this.stickEl.addEventListener('pointerdown', onStickStart);
     this.stickEl.addEventListener('pointermove', onStickMove);
     this.stickEl.addEventListener('pointerup', onStickEnd);
     this.stickEl.addEventListener('pointercancel', onStickEnd);
+    this.resetKnob();
+  }
+
+  private resetKnob() {
+    const rect = this.stickEl.getBoundingClientRect();
+    const cx = (rect.width || 128) / 2 - this.knobHalf;
+    const cy = (rect.height || 128) / 2 - this.knobHalf;
+    this.knobEl.style.left = `${cx}px`;
+    this.knobEl.style.top = `${cy}px`;
   }
 
   private updateStick(cx: number, cy: number) {
@@ -84,7 +95,6 @@ export class Input {
     dy = (dy / len) * clamped;
     let mx = dx / this.stickRadius;
     let my = dy / this.stickRadius;
-    // soft deadzone for phone thumbs
     const m = Math.hypot(mx, my);
     if (m < 0.12) {
       mx = 0;
@@ -96,8 +106,11 @@ export class Input {
     }
     this.moveX = mx;
     this.moveY = my;
-    this.knobEl.style.left = `${35 + dx}px`;
-    this.knobEl.style.top = `${35 + dy}px`;
+    const rect = this.stickEl.getBoundingClientRect();
+    const baseX = rect.width / 2 - this.knobHalf;
+    const baseY = rect.height / 2 - this.knobHalf;
+    this.knobEl.style.left = `${baseX + dx}px`;
+    this.knobEl.style.top = `${baseY + dy}px`;
   }
 
   pollMove(): { x: number; y: number } {

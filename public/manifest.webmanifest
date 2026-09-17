@@ -1,7 +1,7 @@
 {
-  "name": "Emberfall",
-  "short_name": "Emberfall",
-  "description": "Ashblade skozi Ashgates — dotikalna ARPG.",
+  "name": "Dolina · Emberfall",
+  "short_name": "Dolina",
+  "description": "Dolina combat prototype — Ashblade skozi Ashgates.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
