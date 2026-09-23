@@ -1,5 +1,6 @@
-import { WORLD_H, WORLD_W, OBSTACLES } from './map';
+import { WORLD_H, WORLD_W, OBSTACLES, ELITE_PACK_CENTER } from './map';
 import { drawAshblade, drawEnemyFigure, type PlayerDrawState } from './character';
+import { getArt } from './artAssets';
 import type { AoEBurst, Enemy, FloatingText, LootItem, Particle, Projectile } from './types';
 
 /** Soft isometric Y squash for world (phone-safe, no heavy tilt). */
@@ -10,7 +11,9 @@ export class Renderer {
   camY = 0;
   private targetCamX = 0;
   private targetCamY = 0;
-  private sandPat: CanvasPattern | null = null;
+  private ashPat: CanvasPattern | null = null;
+  private lavaPat: CanvasPattern | null = null;
+  private groundReady = false;
   private shakeX = 0;
   private shakeY = 0;
   private shakeTime = 0;
@@ -26,26 +29,34 @@ export class Renderer {
   constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     this.canvas = canvas;
     this.ctx = ctx;
-    this.buildSandPattern();
+    this.ensureGroundPatterns();
   }
 
-  private buildSandPattern() {
-    const c = document.createElement('canvas');
-    c.width = 64;
-    c.height = 64;
-    const g = c.getContext('2d')!;
-    g.fillStyle = '#c4a06a';
-    g.fillRect(0, 0, 64, 64);
-    for (let i = 0; i < 40; i++) {
-      g.fillStyle = i % 2 ? '#b8945c' : '#d0b078';
-      g.fillRect((i * 17) % 64, (i * 29) % 64, 2, 2);
+  /** Cache ash/lava CanvasPatterns once art images are ready; procedural fallback meanwhile. */
+  private ensureGroundPatterns() {
+    if (this.groundReady && this.ashPat) return;
+    const art = getArt();
+    if (art.groundAsh && art.groundAsh.complete && art.groundAsh.naturalWidth > 0) {
+      this.ashPat = this.ctx.createPattern(art.groundAsh, 'repeat');
+      this.groundReady = !!this.ashPat;
     }
-    g.strokeStyle = 'rgba(90,60,30,0.15)';
-    g.beginPath();
-    g.moveTo(0, 32);
-    g.quadraticCurveTo(32, 28, 64, 34);
-    g.stroke();
-    this.sandPat = this.ctx.createPattern(c, 'repeat');
+    if (art.groundLava && art.groundLava.complete && art.groundLava.naturalWidth > 0) {
+      this.lavaPat = this.ctx.createPattern(art.groundLava, 'repeat');
+    }
+    if (!this.ashPat) {
+      // procedural ash fallback
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const g = c.getContext('2d')!;
+      g.fillStyle = '#3a3028';
+      g.fillRect(0, 0, 64, 64);
+      for (let i = 0; i < 48; i++) {
+        g.fillStyle = i % 3 ? '#2a221c' : '#4a4034';
+        g.fillRect((i * 17) % 64, (i * 29) % 64, 2 + (i % 2), 2);
+      }
+      this.ashPat = this.ctx.createPattern(c, 'repeat');
+    }
   }
 
   resize() {
@@ -122,49 +133,120 @@ export class Renderer {
 
   clear() {
     const { ctx } = this;
+    this.ensureGroundPatterns();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    // full-bleed sand without iso (avoids edge gaps)
+    // full-bleed ash ground without iso (avoids edge gaps)
     const ox = this.camX - this.shakeX;
     const oy = this.camY - this.shakeY;
     ctx.save();
     ctx.translate(-ox, -oy);
-    if (this.sandPat) {
-      ctx.fillStyle = this.sandPat;
+    if (this.ashPat) {
+      ctx.fillStyle = this.ashPat;
       ctx.fillRect(ox - 4, oy - 4, vw + 8, vh + 8);
     } else {
-      ctx.fillStyle = '#c4a06a';
+      ctx.fillStyle = '#3a3028';
       ctx.fillRect(0, 0, WORLD_W, WORLD_H);
     }
 
-    ctx.fillStyle = 'rgba(90,55,30,0.12)';
-    for (let i = 0; i < 12; i++) {
+    // Dark ash mottling
+    ctx.fillStyle = 'rgba(10,6,4,0.18)';
+    for (let i = 0; i < 14; i++) {
       const x = (i * 197) % WORLD_W;
       const y = (i * 311) % WORLD_H;
       ctx.beginPath();
-      ctx.ellipse(x, y, 80 + (i % 5) * 20, 40 + (i % 3) * 15, i * 0.4, 0, Math.PI * 2);
+      ctx.ellipse(x, y, 90 + (i % 5) * 22, 44 + (i % 3) * 16, i * 0.4, 0, Math.PI * 2);
       ctx.fill();
     }
 
+    // Lava patches — denser near elite pack center
+    const ec = ELITE_PACK_CENTER;
+    for (let i = 0; i < 9; i++) {
+      const nearElite = i < 4;
+      const x = nearElite
+        ? ec.x + Math.cos(i * 1.7) * (60 + i * 40)
+        : (i * 419 + 200) % WORLD_W;
+      const y = nearElite
+        ? ec.y + Math.sin(i * 2.1) * (50 + i * 35)
+        : (i * 503 + 300) % WORLD_H;
+      const rw = 55 + (i % 4) * 28;
+      const rh = 28 + (i % 3) * 14;
+      ctx.save();
+      if (this.lavaPat && nearElite) {
+        ctx.beginPath();
+        ctx.ellipse(x, y, rw, rh, i * 0.5, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = this.lavaPat;
+        ctx.fillRect(x - rw, y - rh, rw * 2, rh * 2);
+      } else {
+        const g = ctx.createRadialGradient(x, y, 4, x, y, rw);
+        g.addColorStop(0, 'rgba(255,120,30,0.55)');
+        g.addColorStop(0.45, 'rgba(180,40,10,0.35)');
+        g.addColorStop(1, 'rgba(40,10,4,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(x, y, rw, rh, i * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // orange glow ring
+      ctx.globalAlpha = nearElite ? 0.35 : 0.18;
+      ctx.strokeStyle = '#ff6a20';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(x, y, rw * 0.92, rh * 0.92, i * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Rock slabs for obstacles (collision still uses OBSTACLES rects)
     for (const o of OBSTACLES) {
-      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.beginPath();
-      ctx.ellipse(o.x + o.w / 2, o.y + o.h + 6, o.w * 0.55, 10, 0, 0, Math.PI * 2);
+      ctx.ellipse(o.x + o.w / 2, o.y + o.h + 8, o.w * 0.58, 11, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#6a4a38';
-      ctx.fillRect(o.x, o.y, o.w, o.h);
-      ctx.fillStyle = '#8a6550';
-      ctx.fillRect(o.x, o.y, o.w, 12);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(o.x + o.w - 8, o.y, 8, o.h);
-      ctx.strokeStyle = 'rgba(30,15,8,0.45)';
+
+      // layered basalt slab
+      ctx.fillStyle = '#2a2420';
       ctx.beginPath();
-      ctx.moveTo(o.x + 10, o.y + 20);
+      ctx.moveTo(o.x + 4, o.y + o.h);
+      ctx.lineTo(o.x, o.y + 14);
+      ctx.lineTo(o.x + o.w * 0.15, o.y);
+      ctx.lineTo(o.x + o.w * 0.85, o.y + 4);
+      ctx.lineTo(o.x + o.w, o.y + 18);
+      ctx.lineTo(o.x + o.w - 6, o.y + o.h);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#3e3830';
+      ctx.beginPath();
+      ctx.moveTo(o.x + 6, o.y + 16);
+      ctx.lineTo(o.x + o.w * 0.2, o.y + 6);
+      ctx.lineTo(o.x + o.w * 0.75, o.y + 10);
+      ctx.lineTo(o.x + o.w - 8, o.y + 22);
+      ctx.lineTo(o.x + o.w * 0.5, o.y + 28);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#1a1612';
+      ctx.fillRect(o.x + 8, o.y + o.h * 0.45, o.w - 16, o.h * 0.45);
+      ctx.strokeStyle = 'rgba(90,70,50,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(o.x + 12, o.y + 22);
+      ctx.lineTo(o.x + o.w * 0.45, o.y + o.h * 0.55);
+      ctx.lineTo(o.x + o.w - 14, o.y + o.h * 0.7);
+      ctx.stroke();
+      // ember crack
+      ctx.strokeStyle = 'rgba(255,100,30,0.25)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(o.x + o.w * 0.35, o.y + 18);
       ctx.lineTo(o.x + o.w * 0.4, o.y + o.h * 0.6);
       ctx.stroke();
     }
 
-    ctx.strokeStyle = 'rgba(80,50,30,0.6)';
+    ctx.strokeStyle = 'rgba(60,40,30,0.55)';
     ctx.lineWidth = 6;
     ctx.strokeRect(10, 10, WORLD_W - 20, WORLD_H - 20);
     ctx.restore();
@@ -247,7 +329,7 @@ export class Renderer {
     ctx.translate(e.x, e.y);
     const facing = Math.atan2(e.vy || 0.01, e.vx || 0.01);
     const moving = Math.hypot(e.vx, e.vy) > 8;
-    drawEnemyFigure(ctx, e.kind, e.elite, e.flash, e.radius, this.time + e.id, facing, moving);
+    drawEnemyFigure(ctx, e.kind, e.elite, e.flash, e.radius, this.time + e.id, facing, moving, e.id);
     if (e.flash > 0) {
       ctx.globalAlpha = Math.min(0.55, e.flash * 4);
       ctx.fillStyle = '#fff';

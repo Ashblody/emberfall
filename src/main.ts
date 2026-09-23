@@ -1,5 +1,10 @@
 
-// Preload concept art for smooth first overlay paint
+import { Game } from './game/Game';
+import { Input } from './game/input';
+import { Renderer } from './game/renderer';
+import { loadArtAssets } from './game/artAssets';
+
+// Preload overlay concept art + gameplay sprites
 for (const src of [
   './art/valley-menu.webp',
   './art/combat-key.webp',
@@ -10,10 +15,6 @@ for (const src of [
   const img = new Image();
   img.src = src;
 }
-
-import { Game } from './game/Game';
-import { Input } from './game/input';
-import { Renderer } from './game/renderer';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -29,9 +30,14 @@ const input = new Input(
 const renderer = new Renderer(canvas, ctx);
 const game = new Game(input, renderer);
 
-document.getElementById('btn-start')!.addEventListener('click', () => game.start());
+// Gameplay sprites resolve before first start for ash ground + characters
+const artReady = loadArtAssets();
 
-// Start-screen roster tabs (concept sheets only — gameplay sprites stay procedural)
+document.getElementById('btn-start')!.addEventListener('click', () => {
+  void artReady.then(() => game.start());
+});
+
+// Start-screen roster tabs (same concept sheets; gameplay now uses cropped sprites)
 const rosterSheet = document.getElementById('roster-sheet') as HTMLImageElement | null;
 const rosterCaption = document.getElementById('roster-caption');
 const rosterTabs = document.querySelectorAll<HTMLButtonElement>('.roster-tab');
@@ -39,12 +45,12 @@ const rosterViews: Record<string, { src: string; alt: string; caption: string }>
   hero: {
     src: './art/hero-sheet.webp',
     alt: 'Ashblade predogled',
-    caption: 'Ashblade (predogled) · v igri še proceduralni sprite',
+    caption: 'Ashblade · v igri concept art sprite',
   },
   enemy: {
     src: './art/enemy-set.webp',
     alt: 'Sovražniki predogled',
-    caption: 'Peščeni golemi (predogled) · v igri še proceduralni sprite',
+    caption: 'Peščeni golemi · v igri concept art sprite',
   },
 };
 
