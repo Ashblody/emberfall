@@ -1,5 +1,5 @@
 /* Emberfall offline core SW */
-const CACHE = 'emberfall-v5';
+const CACHE = 'emberfall-v6';
 const CORE = [
   './',
   './index.html',
@@ -12,6 +12,14 @@ const CORE = [
   './art/ashgate-portal.webp',
   './art/hero-sheet.webp',
   './art/enemy-set.webp',
+  './art/sprites/hero-front.webp',
+  './art/sprites/hero-side.webp',
+  './art/sprites/enemy-a.webp',
+  './art/sprites/enemy-b.webp',
+  './art/sprites/enemy-c.webp',
+  './art/sprites/ground-ash.webp',
+  './art/sprites/ground-lava.webp',
+  './art/sprites/decal-ruin.webp',
 ];
 
 self.addEventListener('install', (event) => {
