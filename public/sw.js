@@ -1,5 +1,5 @@
 /* Emberfall offline core SW */
-const CACHE = 'emberfall-v3';
+const CACHE = 'emberfall-v4';
 const CORE = [
   './',
   './index.html',
@@ -7,6 +7,9 @@ const CORE = [
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './art/valley-menu.webp',
+  './art/combat-key.webp',
+  './art/ashgate-portal.webp',
 ];
 
 self.addEventListener('install', (event) => {

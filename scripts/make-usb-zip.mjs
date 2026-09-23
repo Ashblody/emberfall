@@ -18,5 +18,15 @@ fs.copyFileSync(readmeSrc, readmeDist);
 
 if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 
-execSync(`cd "${dist}" && zip -r "${zipPath}" .`, { stdio: 'inherit' });
+try {
+  execSync(`cd "${dist}" && zip -r "${zipPath}" .`, { stdio: 'inherit' });
+} catch {
+  // Fallback when system zip is unavailable
+  execSync(
+    `python3 -c "import zipfile; from pathlib import Path; d=Path(r'${dist}'); z=Path(r'${zipPath}');
+zf=zipfile.ZipFile(z,'w',zipfile.ZIP_DEFLATED);
+[zf.write(p, p.relative_to(d).as_posix()) for p in sorted(d.rglob('*')) if p.is_file()]; zf.close(); print('Created', z)"`,
+    { stdio: 'inherit' },
+  );
+}
 console.log('Created', zipPath);

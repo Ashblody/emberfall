@@ -1,3 +1,10 @@
+
+// Preload concept art for smooth first overlay paint
+for (const src of ['./art/valley-menu.webp', './art/combat-key.webp', './art/ashgate-portal.webp']) {
+  const img = new Image();
+  img.src = src;
+}
+
 import { Game } from './game/Game';
 import { Input } from './game/input';
 import { Renderer } from './game/renderer';

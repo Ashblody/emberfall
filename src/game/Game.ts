@@ -92,6 +92,7 @@ export class Game {
   start() {
     this.reset();
     this.running = true;
+    this.overlay.classList.remove('end-screen');
     this.overlay.classList.add('hidden');
     this.lastTs = performance.now();
     requestAnimationFrame(this.frame);
@@ -670,9 +671,11 @@ export class Game {
   }
 
   private showEnd(win: boolean) {
+    this.overlay.classList.add('end-screen');
     this.overlay.classList.remove('hidden');
     const panel = this.overlay.querySelector('.panel')!;
     panel.innerHTML = `
+      <img class="art-strip" src="./art/combat-key.webp" alt="" width="340" height="72" decoding="async" />
       <h1>${win ? 'Zmaga' : 'Padec'}</h1>
       <h2>Dolina · Ashgates</h2>
       <p>${win ? 'Ruševine so za trenutek utihnile.' : 'Ashblade je padel v peščeni prah. Poskusi znova.'}</p>
